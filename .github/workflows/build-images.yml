@@ -106,16 +106,20 @@ jobs:
           tags: ${{ env.CLICKHOUSE_IMAGE }}:verify
       - name: Verify baked image starts without migrations
         run: |
-          docker run -d --name uct-clickhouse-verify -p 18123:8123 ${{ env.CLICKHOUSE_IMAGE }}:verify
+          docker run -d --name uct-clickhouse-verify -p 18123:8123 \
+            -e CLICKHOUSE_USER=dashboard \
+            -e CLICKHOUSE_PASSWORD=verify-password \
+            -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
+            ${{ env.CLICKHOUSE_IMAGE }}:verify
           for attempt in {1..60}; do
-            if curl -fsS http://127.0.0.1:18123/ping >/dev/null; then
+            if curl -fsS -u dashboard:verify-password http://127.0.0.1:18123/ping >/dev/null; then
               break
             fi
             sleep 2
           done
-          test "$(curl -fsS 'http://127.0.0.1:18123/?query=SELECT%20count()%20FROM%20gold.connectivity_points')" = "311"
-          test "$(curl -fsS 'http://127.0.0.1:18123/?query=SELECT%20count()%20FROM%20gold.internet_appeals')" = "2102"
-          test "$(curl -fsS 'http://127.0.0.1:18123/?query=SELECT%20count()%20FROM%20gold.district_connectivity')" = "13"
+          test "$(curl -fsS -u dashboard:verify-password 'http://127.0.0.1:18123/?query=SELECT%20count()%20FROM%20gold.connectivity_points')" = "311"
+          test "$(curl -fsS -u dashboard:verify-password 'http://127.0.0.1:18123/?query=SELECT%20count()%20FROM%20gold.internet_appeals')" = "2102"
+          test "$(curl -fsS -u dashboard:verify-password 'http://127.0.0.1:18123/?query=SELECT%20count()%20FROM%20gold.district_connectivity')" = "13"
       - name: Publish verified ClickHouse image
         run: |
           docker tag ${{ env.CLICKHOUSE_IMAGE }}:verify ${{ env.CLICKHOUSE_IMAGE }}:latest
