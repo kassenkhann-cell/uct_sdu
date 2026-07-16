@@ -1,0 +1,62 @@
+name: Validate Helm deployment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "helm/**"
+      - ".github/workflows/helm-validate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.2.3
+      - name: Lint and render chart
+        run: |
+          helm lint helm/sdu-uct-analiz --strict
+          helm template sdu-uct helm/sdu-uct-analiz \
+            --namespace sdu-uct \
+            --set-string secrets.clickhousePassword=verify-password \
+            --set-string secrets.llmApiKey=verify-key >/tmp/rendered.yaml
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: sdu-uct-verify
+      - name: Install chart in Kubernetes
+        run: |
+          helm upgrade --install sdu-uct helm/sdu-uct-analiz \
+            --namespace sdu-uct --create-namespace \
+            --set app.replicaCount=1 \
+            --set podDisruptionBudget.enabled=false \
+            --set-string secrets.clickhousePassword=verify-password \
+            --set-string secrets.llmApiKey=verify-key \
+            --wait --timeout 8m
+      - name: Verify rollouts and dashboard API
+        run: |
+          kubectl -n sdu-uct rollout status deployment/sdu-uct-sdu-uct-analiz-clickhouse --timeout=3m
+          kubectl -n sdu-uct rollout status deployment/sdu-uct-sdu-uct-analiz --timeout=3m
+          kubectl -n sdu-uct port-forward service/sdu-uct-sdu-uct-analiz 18000:80 >/tmp/port-forward.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:18000/ready >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:18000/api/dashboard/summary >/tmp/dashboard.json
+          test "$(jq '.settlements | length' /tmp/dashboard.json)" = "311"
+          test "$(jq '.appeals | length' /tmp/dashboard.json)" = "2102"
+          test "$(jq '.districts | length' /tmp/dashboard.json)" = "13"
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n sdu-uct get all -o wide || true
+          kubectl -n sdu-uct describe pods || true
+          kubectl -n sdu-uct logs deployment/sdu-uct-sdu-uct-analiz-clickhouse --tail=200 || true
+          kubectl -n sdu-uct logs deployment/sdu-uct-sdu-uct-analiz --tail=200 || true
