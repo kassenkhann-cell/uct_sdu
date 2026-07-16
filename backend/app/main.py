@@ -99,13 +99,13 @@ class ChatRequest(BaseModel):
 def chat(payload: ChatRequest, request: Request):
     enforce_chat_rate_limit(request.client.host if request.client else "unknown")
     try:
-        answer, model = answer_question(
+        answer, model, scope = answer_question(
             dashboard_payload(),
             payload.message.strip(),
             payload.district,
             [item.model_dump() for item in payload.history],
         )
-        return {"answer": answer, "model": model}
+        return {"answer": answer, "model": model, "scope": scope}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Выбран неизвестный район") from exc
     except Exception as exc:

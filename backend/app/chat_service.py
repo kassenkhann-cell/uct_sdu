@@ -25,6 +25,42 @@ def _normalized(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.lower())
 
 
+def _search_normalized(value: str) -> str:
+    return re.sub(r"[^a-zа-яё0-9]+", "", value.lower())
+
+
+def _district_aliases(district_name: str) -> set[str]:
+    normalized = _search_normalized(district_name)
+    aliases = {normalized}
+    if normalized.endswith("ский"):
+        aliases.add(normalized[:-4])
+    return {alias for alias in aliases if len(alias) >= 3}
+
+
+def detect_district_names(
+    payload: dict[str, Any],
+    message: str,
+    history: list[dict[str, str]] | None = None,
+) -> list[str]:
+    search_text = "\n".join(
+        [
+            *[
+                str(item.get("content", ""))
+                for item in (history or [])[-6:]
+                if item.get("role") == "user"
+            ],
+            message,
+        ]
+    )
+    normalized_text = _search_normalized(search_text)
+    matches: list[str] = []
+    for district in payload.get("districts", []):
+        name = str(district.get("district", ""))
+        if any(alias in normalized_text for alias in _district_aliases(name)):
+            matches.append(name)
+    return matches
+
+
 @lru_cache(maxsize=1)
 def resolve_model() -> str:
     if settings.llm_model:
@@ -53,27 +89,38 @@ def resolve_model() -> str:
     return exact[0]
 
 
-def build_context(payload: dict[str, Any], district_name: str | None) -> dict[str, Any]:
+def build_context(
+    payload: dict[str, Any],
+    district_name: str | None,
+    message: str,
+    history: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
     districts = payload.get("districts", [])
-    district = next(
-        (item for item in districts if item.get("district") == district_name),
-        None,
+    selected_names = (
+        [district_name]
+        if district_name
+        else detect_district_names(payload, message, history)
     )
-    if district_name and district is None:
+    selected_districts = [
+        item for item in districts if item.get("district") in selected_names
+    ]
+    if district_name and not selected_districts:
         raise ValueError("Unknown district")
+    district = selected_districts[0] if len(selected_districts) == 1 else None
+    selected_set = set(selected_names)
 
     settlements = payload.get("settlements", [])
     appeals = payload.get("appeals", [])
     recommendations = payload.get("recommendations", [])
-    if district:
+    if selected_set:
         settlements = [
-            item for item in settlements if item.get("district") == district_name
+            item for item in settlements if item.get("district") in selected_set
         ]
-        appeals = [item for item in appeals if item.get("district") == district_name]
+        appeals = [item for item in appeals if item.get("district") in selected_set]
         recommendations = [
             item
             for item in recommendations
-            if item.get("district") == district_name
+            if item.get("district") in selected_set
         ]
 
     problem_points = sorted(
@@ -121,7 +168,8 @@ def build_context(payload: dict[str, Any], district_name: str | None) -> dict[st
     return {
         "data_updated_at": payload.get("meta", {}).get("generated_at"),
         "period": payload.get("meta", {}).get("period"),
-        "scope": district_name or "Актюбинская область",
+        "scope": ", ".join(selected_names) if selected_names else "Актюбинская область",
+        "matched_districts": selected_names,
         "regional_kpis": payload.get("kpis", {}),
         "district": (
             {key: district.get(key) for key in district_fields} if district else None
@@ -129,7 +177,7 @@ def build_context(payload: dict[str, Any], district_name: str | None) -> dict[st
         "district_ranking": [
             {key: item.get(key) for key in district_fields}
             for item in sorted(
-                districts,
+                selected_districts if len(selected_districts) > 1 else districts,
                 key=lambda item: -float(item.get("risk_score", 0) or 0),
             )
         ] if not district else [],
@@ -160,11 +208,11 @@ def answer_question(
     message: str,
     district: str | None,
     history: list[dict[str, str]],
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     if not settings.llm_api_key:
         raise RuntimeError("LLM API key is not configured")
 
-    context = build_context(payload, district)
+    context = build_context(payload, district, message, history)
     safe_history = [
         {"role": item["role"], "content": item["content"][:2000]}
         for item in history[-6:]
@@ -198,4 +246,4 @@ def answer_question(
     content = str(result["choices"][0]["message"]["content"]).strip()
     if not content:
         raise RuntimeError("LLM returned an empty answer")
-    return content, resolve_model()
+    return content, resolve_model(), str(context["scope"])

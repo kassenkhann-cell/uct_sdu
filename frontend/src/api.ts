@@ -22,9 +22,8 @@ export interface ChatMessage {
 
 export async function askDashboardAssistant(request: {
   message: string;
-  district?: string;
   history: ChatMessage[];
-}): Promise<{ answer: string; model: string }> {
+}): Promise<{ answer: string; model: string; scope?: string }> {
   const response = await fetch(`${API_BASE}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -34,5 +33,5 @@ export async function askDashboardAssistant(request: {
   if (!response.ok || !contentType.includes("application/json")) {
     throw new Error("Assistant backend is unavailable");
   }
-  return (await response.json()) as { answer: string; model: string };
+  return (await response.json()) as { answer: string; model: string; scope?: string };
 }

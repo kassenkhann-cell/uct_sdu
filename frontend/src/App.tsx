@@ -748,10 +748,7 @@ export default function App() {
         />
       </main>
 
-      <AssistantChat
-        districts={districtsList}
-        selectedDistrict={filters.district}
-      />
+      <AssistantChat />
 
       {data.meta.warnings.length > 0 && (
         <div className="data-warning">

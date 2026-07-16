@@ -67,18 +67,46 @@ async function resolveModel() {
   return resolvedModel;
 }
 
-function buildChatContext(payload, districtName) {
-  const districts = payload.districts || [];
-  const district = districtName
-    ? districts.find((item) => item.district === districtName)
-    : null;
-  if (districtName && !district) throw new Error("Unknown district");
+function searchNormalized(value) {
+  return String(value).toLowerCase().replace(/[^a-zа-яё0-9]+/g, "");
+}
 
-  const scopedSettlements = districtName
-    ? (payload.settlements || []).filter((item) => item.district === districtName)
+function districtAliases(districtName) {
+  const normalized = searchNormalized(districtName);
+  const aliases = new Set([normalized]);
+  if (normalized.endsWith("ский")) aliases.add(normalized.slice(0, -4));
+  return [...aliases].filter((alias) => alias.length >= 3);
+}
+
+function detectDistrictNames(payload, message, history) {
+  const searchText = [
+    ...(history || [])
+      .filter((item) => item?.role === "user")
+      .slice(-6)
+      .map((item) => String(item.content || "")),
+    message,
+  ].join("\n");
+  const normalizedText = searchNormalized(searchText);
+  return (payload.districts || [])
+    .map((item) => String(item.district || ""))
+    .filter((name) => districtAliases(name).some((alias) => normalizedText.includes(alias)));
+}
+
+function buildChatContext(payload, districtName, message, history) {
+  const districts = payload.districts || [];
+  const selectedNames = districtName
+    ? [districtName]
+    : detectDistrictNames(payload, message, history);
+  const selectedSet = new Set(selectedNames);
+  const selectedDistricts = districts.filter((item) => selectedSet.has(item.district));
+  if (districtName && selectedDistricts.length === 0) throw new Error("Unknown district");
+  const district = selectedDistricts.length === 1 ? selectedDistricts[0] : null;
+
+  const scopedSettlements = selectedSet.size
+    ? (payload.settlements || []).filter((item) => selectedSet.has(item.district))
     : payload.settlements || [];
-  const scopedAppeals = districtName
-    ? (payload.appeals || []).filter((item) => item.district === districtName)
+  const scopedAppeals = selectedSet.size
+    ? (payload.appeals || []).filter((item) => selectedSet.has(item.district))
     : payload.appeals || [];
   const topics = new Map();
   for (const appeal of scopedAppeals) {
@@ -129,12 +157,13 @@ function buildChatContext(payload, districtName) {
   return {
     data_updated_at: payload.meta?.generated_at,
     period: payload.meta?.period,
-    scope: districtName || "Актюбинская область",
+    scope: selectedNames.length ? selectedNames.join(", ") : "Актюбинская область",
+    matched_districts: selectedNames,
     regional_kpis: payload.kpis,
     district: district ? districtSummary(district) : null,
     district_ranking: district
       ? []
-      : [...districts]
+      : [...(selectedDistricts.length > 1 ? selectedDistricts : districts)]
           .sort((a, b) => Number(b.risk_score || 0) - Number(a.risk_score || 0))
           .map(districtSummary),
     problem_settlements: problemSettlements,
@@ -143,7 +172,7 @@ function buildChatContext(payload, districtName) {
       .slice(0, 10)
       .map(([topic, appeals]) => ({ topic, appeals })),
     recommendations: (payload.recommendations || [])
-      .filter((item) => !districtName || item.district === districtName)
+      .filter((item) => !selectedSet.size || selectedSet.has(item.district))
       .slice(0, 8)
       .map((item) => ({
         title: item.title,
@@ -184,13 +213,13 @@ async function answerChat(body) {
   const district = body.district ? String(body.district).slice(0, 120) : null;
   if (!message) throw new Error("Message is required");
   const dashboard = JSON.parse(fs.readFileSync(dashboardPath, "utf8"));
-  const context = buildChatContext(dashboard, district);
   const history = Array.isArray(body.history)
     ? body.history
         .filter((item) => ["user", "assistant"].includes(item?.role) && item?.content)
         .slice(-6)
         .map((item) => ({ role: item.role, content: String(item.content).slice(0, 2000) }))
     : [];
+  const context = buildChatContext(dashboard, district, message, history);
   const model = await resolveModel();
   const response = await fetch(`${llmBaseUrl}/chat/completions`, {
     method: "POST",
@@ -219,7 +248,7 @@ async function answerChat(body) {
   const result = await response.json();
   const answer = String(result.choices?.[0]?.message?.content || "").trim();
   if (!answer) throw new Error("LLM returned an empty answer");
-  return { answer, model };
+  return { answer, model, scope: context.scope };
 }
 
 const sendJson = (response, value, statusCode = 200) => {

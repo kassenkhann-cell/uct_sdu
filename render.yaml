@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: sdu-uct-analiz-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    repo: https://github.com/kassenkhann-cell/uct_sdu
+    branch: main
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: DATA_MODE
+        value: local
+      - key: CORS_ORIGINS
+        value: https://kassenkhann-cell.github.io
+      - key: LLM_BASE_URL
+        value: https://llm.nitec.kz/v1
+      - key: LLM_MODEL
+        value: deepseek-ai/DeepSeek-V4-Pro
+      - key: LLM_TIMEOUT_SECONDS
+        value: "90"
+      - key: LLM_API_KEY
+        sync: false

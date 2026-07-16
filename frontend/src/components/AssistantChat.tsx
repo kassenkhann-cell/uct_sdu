@@ -3,19 +3,12 @@ import type { FormEvent, ReactNode } from "react";
 import { BarChart3, MessageCircle, Send, X } from "lucide-react";
 import { askDashboardAssistant, type ChatMessage } from "../api";
 
-const ALL_DISTRICTS = "Все районы";
-
 const starterPrompts = [
-  "Подготовь краткий отчёт по выбранному району",
-  "Сравни выбранный район со средним уровнем по области",
-  "Какие проблемные точки требуют первоочередного решения?",
-  "Составь практический план действий на 90 дней",
+  "Подготовь краткий отчёт по Хромтаускому району",
+  "Сравни Хромтауский и Байганинский районы",
+  "Какие районы требуют первоочередного решения?",
+  "Составь план действий по Мугалжарскому району на 90 дней",
 ];
-
-interface AssistantChatProps {
-  districts: string[];
-  selectedDistrict: string;
-}
 
 function formatInline(text: string): ReactNode[] {
   return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
@@ -37,29 +30,23 @@ function MessageContent({ content }: { content: string }) {
   ));
 }
 
-export function AssistantChat({ districts, selectedDistrict }: AssistantChatProps) {
+export function AssistantChat() {
   const chatEnabled =
     import.meta.env.VITE_CHAT_ENABLED === "true" ||
     !window.location.hostname.endsWith("github.io");
   const [open, setOpen] = useState(false);
-  const [district, setDistrict] = useState(
-    selectedDistrict === ALL_DISTRICTS ? "" : selectedDistrict,
-  );
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
       content:
-        "Выберите район и задайте вопрос. Я подготовлю ответ только по данным этого дашборда.",
+        "Напишите район прямо в вопросе — например: «почему высокий риск в Хромтауском районе?». Если район не указан, я проанализирую всю область.",
     },
   ]);
   const [loading, setLoading] = useState(false);
   const [model, setModel] = useState("DeepSeek V4 Pro");
+  const [scope, setScope] = useState("Вся область");
   const messageEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (selectedDistrict !== ALL_DISTRICTS) setDistrict(selectedDistrict);
-  }, [selectedDistrict]);
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -75,10 +62,10 @@ export function AssistantChat({ districts, selectedDistrict }: AssistantChatProp
     try {
       const result = await askDashboardAssistant({
         message,
-        district: district || undefined,
         history,
       });
       setModel(result.model || "DeepSeek V4 Pro");
+      setScope(result.scope || "Вся область");
       setMessages((current) => [
         ...current,
         { role: "assistant", content: result.answer },
@@ -113,27 +100,13 @@ export function AssistantChat({ districts, selectedDistrict }: AssistantChatProp
               <span><BarChart3 size={18} /></span>
               <div>
                 <strong>Аналитик данных</strong>
-                <small>{model} · ответы по данным дашборда</small>
+                <small>{model} · контекст: {scope}</small>
               </div>
             </div>
             <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть чат">
               <X size={18} />
             </button>
           </header>
-
-          <div className="assistant-chat__scope">
-            <label htmlFor="assistant-district">Район для анализа</label>
-            <select
-              id="assistant-district"
-              value={district}
-              onChange={(event) => setDistrict(event.target.value)}
-            >
-              <option value="">Вся область</option>
-              {districts.map((item) => (
-                <option key={item} value={item}>{item}</option>
-              ))}
-            </select>
-          </div>
 
           <div className="assistant-chat__messages" aria-live="polite">
             {messages.map((message, index) => (
@@ -174,7 +147,7 @@ export function AssistantChat({ districts, selectedDistrict }: AssistantChatProp
               }}
               maxLength={2000}
               rows={2}
-              placeholder="Например: почему у района высокий риск?"
+              placeholder="Например: почему высокий риск в Хромтауском районе?"
               aria-label="Вопрос аналитику"
             />
             <button type="submit" disabled={!input.trim() || loading} aria-label="Отправить">
