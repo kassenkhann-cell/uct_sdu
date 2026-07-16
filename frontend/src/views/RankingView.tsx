@@ -27,6 +27,7 @@ export function RankingView({ districts }: RankingViewProps) {
     () => [...districts].sort((a, b) => b.risk_score - a.risk_score),
     [districts],
   );
+  const visibleDistricts = sorted.slice(0, 12);
   const [selectedDistrict, setSelectedDistrict] = useState<string>("");
   const selected = sorted.find((item) => item.district === selectedDistrict) || sorted[0];
 
@@ -47,45 +48,76 @@ export function RankingView({ districts }: RankingViewProps) {
         eyebrow="Индекс объясняется факторами риска, а не только цифрой"
       >
         <div className="ranking-layout">
-          <div className="ranking-chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={sorted.slice(0, 12)}
-                layout="vertical"
-                margin={{ left: 16, right: 20 }}
-              >
-                <CartesianGrid stroke="var(--chart-grid)" horizontal={false} />
-                <XAxis
-                  type="number"
-                  domain={[0, 100]}
-                  stroke="var(--text-muted)"
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="district"
-                  width={120}
-                  stroke="var(--text-muted)"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "var(--card-elevated)",
-                    border: "1px solid var(--glass-border)",
-                    borderRadius: 12,
-                    color: "var(--text-main)",
-                  }}
-                />
-                <Bar dataKey="risk_score" name="Индекс риска" radius={[0, 8, 8, 0]}>
-                  {sorted.slice(0, 12).map((item) => (
-                    <Cell key={item.district} fill={riskColor(item.risk_level)} />
+          <div className="ranking-chart-column">
+            <div className="ranking-picker">
+              <label>
+                <span>Выберите район</span>
+                <select
+                  value={selected?.district || ""}
+                  onChange={(event) => setSelectedDistrict(event.target.value)}
+                >
+                  {visibleDistricts.map((item) => (
+                    <option key={item.district} value={item.district}>
+                      {item.district}
+                    </option>
                   ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                </select>
+              </label>
+              <small>Или нажмите прямо на полосу графика</small>
+            </div>
+
+            <div className="ranking-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={visibleDistricts}
+                  layout="vertical"
+                  margin={{ left: 16, right: 20 }}
+                >
+                  <CartesianGrid stroke="var(--chart-grid)" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    domain={[0, 100]}
+                    stroke="var(--text-muted)"
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="district"
+                    width={120}
+                    stroke="var(--text-muted)"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "color-mix(in srgb, var(--primary-blue) 7%, transparent)" }}
+                    contentStyle={{
+                      backgroundColor: "var(--card-elevated)",
+                      border: "1px solid var(--glass-border)",
+                      borderRadius: 12,
+                      color: "var(--text-main)",
+                    }}
+                  />
+                  <Bar dataKey="risk_score" name="Индекс риска" radius={[0, 8, 8, 0]}>
+                    {visibleDistricts.map((item) => {
+                      const isSelected = selected?.district === item.district;
+                      return (
+                        <Cell
+                          key={item.district}
+                          fill={riskColor(item.risk_level)}
+                          opacity={isSelected ? 1 : 0.78}
+                          stroke={isSelected ? "var(--primary-blue)" : "transparent"}
+                          strokeWidth={isSelected ? 3 : 0}
+                          style={{ cursor: "pointer" }}
+                          onClick={() => setSelectedDistrict(item.district)}
+                        />
+                      );
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
           {selected && (

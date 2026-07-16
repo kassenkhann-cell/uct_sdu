@@ -1513,6 +1513,56 @@ tbody tr:last-child td {
   height: 470px;
 }
 
+.ranking-chart-column {
+  min-width: 0;
+}
+
+.ranking-picker {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.ranking-picker label {
+  display: grid;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ranking-picker select {
+  min-width: 220px;
+  height: 40px;
+  padding: 0 36px 0 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: var(--input-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.ranking-picker select:focus {
+  border-color: var(--primary-blue);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-blue) 18%, transparent);
+}
+
+.ranking-picker small {
+  padding-bottom: 7px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 .ranking-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
@@ -2253,6 +2303,21 @@ footer {
 
   .updated-at {
     flex: 1 1 auto;
+  }
+
+  .ranking-picker {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .ranking-picker select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .ranking-picker small {
+    padding-bottom: 0;
   }
 
   .kpi-grid,
