@@ -1,0 +1,31 @@
+{
+  "name": "digital-radar-aktobe",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "prepare:data": "node scripts/prepare-data.mjs",
+    "validate:data": "node scripts/validate-dashboard.mjs",
+    "dev": "node scripts/launch-dashboard.mjs",
+    "dev:vite": "npm run prepare:data && node scripts/dev-server.mjs",
+    "dev:full": "npm run prepare:data && concurrently -k -n API,UI -c green,cyan \"python -m uvicorn backend.app.main:app --reload --port 8000\" \"node scripts/dev-server.mjs\"",
+    "build": "npm run prepare:data && npm run validate:data && npm run build:static",
+    "build:static": "tsc --noEmit -p frontend/tsconfig.app.json && node scripts/build-frontend.mjs",
+    "publish:data": "node scripts/publish-dashboard.mjs",
+    "preview": "vite preview --config vite.config.ts --host 0.0.0.0",
+    "api": "python -m uvicorn backend.app.main:app --reload --port 8000"
+  },
+  "dependencies": {
+    "papaparse": "5.4.1",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@vitejs/plugin-react": "4.3.4",
+    "concurrently": "9.1.0",
+    "typescript": "5.7.2",
+    "vite": "5.4.11"
+  }
+}

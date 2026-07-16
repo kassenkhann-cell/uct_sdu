@@ -1,0 +1,17 @@
+node_modules/
+.agents/
+.codex/
+frontend/dist/
+frontend/*.tsbuildinfo
+backend/**/__pycache__/
+*.pyc
+.env
+image/*.tar
+handoff/
+logs/
+data/*.xlsx
+data/*.csv
+data/derived/
+backend/app/generated/
+sdu_uct_analiz.txt
+sdu_uct_analiz.url
