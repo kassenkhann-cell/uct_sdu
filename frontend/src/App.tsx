@@ -720,7 +720,13 @@ export default function App() {
             />
           )}
           {activeTab === "ranking" && filteredSettlements.length > 0 && (
-            <RankingView districts={filteredDistricts} />
+            <RankingView
+              districts={data.districts}
+              selectedDistrict={
+                filters.district === ALL_DISTRICTS ? "" : filters.district
+              }
+              onDistrictSelect={handleDistrictSelect}
+            />
           )}
           {activeTab === "ai" && filteredSettlements.length > 0 && (
             <AIView

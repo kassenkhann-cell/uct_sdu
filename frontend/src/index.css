@@ -1282,6 +1282,19 @@ tbody tr:last-child td {
   background: color-mix(in srgb, var(--primary-blue) 10%, transparent);
 }
 
+.selected-table-row td:first-child {
+  box-shadow: inset 3px 0 0 var(--primary-blue);
+}
+
+tbody tr[tabindex="0"] {
+  cursor: pointer;
+}
+
+tbody tr[tabindex="0"]:focus-visible {
+  outline: 2px solid var(--primary-blue);
+  outline-offset: -2px;
+}
+
 .problem-only-view {
   border: 1px solid var(--glass-border);
   border-radius: var(--card-radius);

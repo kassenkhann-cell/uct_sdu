@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -20,16 +20,68 @@ import {
 
 interface RankingViewProps {
   districts: District[];
+  selectedDistrict: string;
+  onDistrictSelect: (district: string) => void;
 }
 
-export function RankingView({ districts }: RankingViewProps) {
+interface DistrictAxisTickProps {
+  x?: number;
+  y?: number;
+  payload?: { value?: string };
+  selectedDistrict: string;
+  onSelect: (district: string) => void;
+}
+
+function DistrictAxisTick({
+  x = 0,
+  y = 0,
+  payload,
+  selectedDistrict,
+  onSelect,
+}: DistrictAxisTickProps) {
+  const district = String(payload?.value || "");
+  const active = district === selectedDistrict;
+  return (
+    <g
+      transform={`translate(${x},${y})`}
+      role="button"
+      tabIndex={0}
+      aria-label={`Выбрать район ${district}`}
+      onClick={() => onSelect(district)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") onSelect(district);
+      }}
+      style={{ cursor: "pointer" }}
+    >
+      <text
+        x={-8}
+        y={0}
+        dy="0.32em"
+        textAnchor="end"
+        fill={active ? "var(--primary-blue)" : "var(--text-muted)"}
+        fontSize={12}
+        fontWeight={active ? 750 : 500}
+      >
+        {district}
+      </text>
+    </g>
+  );
+}
+
+export function RankingView({
+  districts,
+  selectedDistrict,
+  onDistrictSelect,
+}: RankingViewProps) {
   const sorted = useMemo(
     () => [...districts].sort((a, b) => b.risk_score - a.risk_score),
     [districts],
   );
   const visibleDistricts = sorted.slice(0, 12);
-  const [selectedDistrict, setSelectedDistrict] = useState<string>("");
   const selected = sorted.find((item) => item.district === selectedDistrict) || sorted[0];
+  const chooseDistrict = (district: string) => {
+    if (district) onDistrictSelect(district);
+  };
 
   const explanation = selected
     ? [
@@ -54,7 +106,7 @@ export function RankingView({ districts }: RankingViewProps) {
                 <span>Выберите район</span>
                 <select
                   value={selected?.district || ""}
-                  onChange={(event) => setSelectedDistrict(event.target.value)}
+                  onChange={(event) => chooseDistrict(event.target.value)}
                 >
                   {visibleDistricts.map((item) => (
                     <option key={item.district} value={item.district}>
@@ -88,7 +140,13 @@ export function RankingView({ districts }: RankingViewProps) {
                     stroke="var(--text-muted)"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 12 }}
+                    tick={(props) => (
+                      <DistrictAxisTick
+                        {...props}
+                        selectedDistrict={selected?.district || ""}
+                        onSelect={chooseDistrict}
+                      />
+                    )}
                   />
                   <Tooltip
                     cursor={{ fill: "color-mix(in srgb, var(--primary-blue) 7%, transparent)" }}
@@ -99,7 +157,12 @@ export function RankingView({ districts }: RankingViewProps) {
                       color: "var(--text-main)",
                     }}
                   />
-                  <Bar dataKey="risk_score" name="Индекс риска" radius={[0, 8, 8, 0]}>
+                  <Bar
+                    dataKey="risk_score"
+                    name="Индекс риска"
+                    radius={[0, 8, 8, 0]}
+                    onClick={(_, index) => chooseDistrict(visibleDistricts[index]?.district || "")}
+                  >
                     {visibleDistricts.map((item) => {
                       const isSelected = selected?.district === item.district;
                       return (
@@ -110,7 +173,7 @@ export function RankingView({ districts }: RankingViewProps) {
                           stroke={isSelected ? "var(--primary-blue)" : "transparent"}
                           strokeWidth={isSelected ? 3 : 0}
                           style={{ cursor: "pointer" }}
-                          onClick={() => setSelectedDistrict(item.district)}
+                          onClick={() => chooseDistrict(item.district)}
                         />
                       );
                     })}
@@ -167,7 +230,13 @@ export function RankingView({ districts }: RankingViewProps) {
                 <tr
                   key={item.district}
                   className={selected?.district === item.district ? "selected-table-row" : ""}
-                  onClick={() => setSelectedDistrict(item.district)}
+                  onClick={() => chooseDistrict(item.district)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      chooseDistrict(item.district);
+                    }
+                  }}
+                  tabIndex={0}
                 >
                   <td>
                     <span className="rank-number">
