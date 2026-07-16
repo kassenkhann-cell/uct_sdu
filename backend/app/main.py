@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from collections import defaultdict, deque
+from time import monotonic
+from typing import Literal
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
+from .chat_service import answer_question
 from .clickhouse import get_client
 from .data_service import load_clickhouse_payload, load_local_payload
 from .settings import settings
@@ -22,9 +28,24 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=list(settings.cors_origins),
     allow_credentials=True,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+chat_requests: dict[str, deque[float]] = defaultdict(deque)
+
+
+def enforce_chat_rate_limit(client_id: str) -> None:
+    now = monotonic()
+    recent = chat_requests[client_id]
+    while recent and recent[0] < now - 60:
+        recent.popleft()
+    if len(recent) >= 12:
+        raise HTTPException(
+            status_code=429,
+            detail="Слишком много запросов. Повторите через минуту.",
+        )
+    recent.append(now)
 
 
 def dashboard_payload():
@@ -61,6 +82,37 @@ def meta():
 @app.get("/api/dashboard/summary")
 def dashboard_summary():
     return dashboard_payload()
+
+
+class ChatTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    district: str | None = Field(default=None, max_length=120)
+    history: list[ChatTurn] = Field(default_factory=list, max_length=6)
+
+
+@app.post("/api/chat")
+def chat(payload: ChatRequest, request: Request):
+    enforce_chat_rate_limit(request.client.host if request.client else "unknown")
+    try:
+        answer, model = answer_question(
+            dashboard_payload(),
+            payload.message.strip(),
+            payload.district,
+            [item.model_dump() for item in payload.history],
+        )
+        return {"answer": answer, "model": model}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Выбран неизвестный район") from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Аналитик временно недоступен. Попробуйте ещё раз позже.",
+        ) from exc
 
 
 ROOT = Path(__file__).resolve().parents[2]

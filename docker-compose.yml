@@ -23,6 +23,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    env_file:
+      - ./data/.env
     environment:
       DATA_MODE: clickhouse
       CLICKHOUSE_HOST: clickhouse
@@ -32,6 +34,9 @@ services:
       CLICKHOUSE_SECURE: "false"
       CLICKHOUSE_VERIFY: "false"
       CORS_ORIGINS: http://localhost:8000
+      LLM_BASE_URL: https://llm.nitec.kz/v1
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
     ports:
       - "8000:8000"
     depends_on:

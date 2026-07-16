@@ -27,6 +27,7 @@ import type {
 } from "./types";
 import { FiltersPanel } from "./components/FiltersPanel";
 import { KpiCard } from "./components/KpiCard";
+import { AssistantChat } from "./components/AssistantChat";
 import { OverviewView } from "./views/OverviewView";
 import { AppealsView } from "./views/AppealsView";
 import { RankingView } from "./views/RankingView";
@@ -740,6 +741,11 @@ export default function App() {
           onReset={resetAllFilters}
         />
       </main>
+
+      <AssistantChat
+        districts={districtsList}
+        selectedDistrict={filters.district}
+      />
 
       {data.meta.warnings.length > 0 && (
         <div className="data-warning">

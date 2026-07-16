@@ -65,6 +65,7 @@ function needsBuild() {
     path.join(root, "frontend", "index.html"),
     path.join(root, "scripts", "prepare-data.mjs"),
     path.join(root, "scripts", "build-frontend.mjs"),
+    path.join(root, "scripts", "serve-built.mjs"),
     path.join(root, "package.json"),
     path.join(root, "package-lock.json"),
     path.join(root, "vite.config.ts"),
@@ -93,6 +94,19 @@ function openBrowser() {
   child.unref();
 }
 
+function stopLocalDashboardServer() {
+  if (process.platform !== "win32") return;
+  const command =
+    "$current = $PID; Get-CimInstance Win32_Process | " +
+    "Where-Object { $_.ProcessId -ne $current -and $_.CommandLine -like '*scripts*serve-built.mjs*' } | " +
+    "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }";
+  spawnSync("powershell.exe", ["-NoProfile", "-Command", command], {
+    cwd: root,
+    stdio: "ignore",
+    windowsHide: true,
+  });
+}
+
 let didBuild = false;
 
 if (needsBuild()) {
@@ -116,6 +130,11 @@ if (didBuild && process.env.SKIP_PUBLISH !== "1") {
   if (publish.status !== 0) {
     console.warn("Общая ссылка пока не обновилась, но локальная версия будет открыта.");
   }
+}
+
+if (didBuild) {
+  stopLocalDashboardServer();
+  await new Promise((resolve) => setTimeout(resolve, 400));
 }
 
 if (!(await isReady())) {

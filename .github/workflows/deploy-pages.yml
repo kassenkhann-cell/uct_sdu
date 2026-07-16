@@ -38,6 +38,8 @@ jobs:
         env:
           VITE_BASE_PATH: /uct_sdu/
           VITE_PUBLIC_ALIAS: sdu_uct_analiz
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_CHAT_ENABLED: ${{ vars.VITE_CHAT_ENABLED }}
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
