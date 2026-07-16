@@ -1,0 +1,91 @@
+{{- if .Values.clickhouse.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sdu-uct-analiz.fullname" . }}-clickhouse
+  labels:
+    {{- include "sdu-uct-analiz.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      {{- include "sdu-uct-analiz.clickhouseSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "sdu-uct-analiz.clickhouseSelectorLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: clickhouse
+          image: "{{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}"
+          imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.clickhouse.securityContext | nindent 12 }}
+          env:
+            - name: CLICKHOUSE_USER
+              value: {{ .Values.clickhouse.auth.username | quote }}
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sdu-uct-analiz.secretName" . }}
+                  key: clickhouse-password
+            - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 8123
+              protocol: TCP
+            - name: native
+              containerPort: 9000
+              protocol: TCP
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --query "SELECT 1"
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --query "SELECT 1"
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - test "$(clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --query "SELECT count() FROM gold.district_connectivity")" = "13"
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.clickhouse.resources | nindent 12 }}
+      {{- with .Values.clickhouse.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.clickhouse.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.clickhouse.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

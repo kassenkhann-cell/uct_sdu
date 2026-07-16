@@ -1,0 +1,112 @@
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+app:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/kassenkhann-cell/uct_sdu-app
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+  podAnnotations: {}
+  podLabels: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 10001
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+clickhouse:
+  enabled: true
+  image:
+    repository: ghcr.io/kassenkhann-cell/uct_sdu-clickhouse
+    tag: latest
+    pullPolicy: Always
+  auth:
+    username: dashboard
+  service:
+    type: ClusterIP
+    httpPort: 8123
+    nativePort: 9000
+    annotations: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    runAsNonRoot: true
+    runAsUser: 101
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  external:
+    host: ""
+    port: 8123
+    username: dashboard
+    secure: false
+    verify: true
+
+secrets:
+  existingSecret: ""
+  clickhousePassword: ""
+  llmApiKey: ""
+
+llm:
+  baseUrl: https://llm.nitec.kz/v1
+  model: deepseek-ai/DeepSeek-V4-Pro
+  timeoutSeconds: 90
+
+corsOrigins: "*"
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: sdu-uct-analiz.example.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: false
+  ingressNamespaceSelector: {}

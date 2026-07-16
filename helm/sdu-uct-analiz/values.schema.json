@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "app": {
+      "type": "object",
+      "required": ["replicaCount", "image", "service"],
+      "properties": {
+        "replicaCount": { "type": "integer", "minimum": 1 },
+        "image": {
+          "type": "object",
+          "required": ["repository", "tag", "pullPolicy"],
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string", "minLength": 1 },
+            "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "service": {
+          "type": "object",
+          "properties": {
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+          }
+        }
+      }
+    },
+    "clickhouse": {
+      "type": "object",
+      "required": ["enabled", "image", "auth", "service", "external"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": {
+          "type": "object",
+          "required": ["repository", "tag", "pullPolicy"],
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string", "minLength": 1 },
+            "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "properties": { "username": { "type": "string", "minLength": 1 } }
+        },
+        "external": {
+          "type": "object",
+          "properties": {
+            "host": { "type": "string" },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "secure": { "type": "boolean" },
+            "verify": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "clickhousePassword": { "type": "string" },
+        "llmApiKey": { "type": "string" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": { "enabled": { "type": "boolean" } }
+    }
+  },
+  "required": ["app", "clickhouse", "secrets", "ingress"]
+}

@@ -1,4 +1,5 @@
 node_modules/
+.build/
 .agents/
 .codex/
 frontend/dist/

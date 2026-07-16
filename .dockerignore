@@ -1,4 +1,7 @@
 data/.env
+data/*.xlsx
+data/*.csv
+data/derived
 .env
 .git
 .github

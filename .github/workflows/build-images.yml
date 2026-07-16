@@ -1,0 +1,124 @@
+name: Build application and baked ClickHouse images
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "scripts/**"
+      - "docker/clickhouse-baked/**"
+      - "helm/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-images.yml"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: container-images
+  cancel-in-progress: false
+
+env:
+  APP_IMAGE: ghcr.io/kassenkhann-cell/uct_sdu-app
+  CLICKHOUSE_IMAGE: ghcr.io/kassenkhann-cell/uct_sdu-clickhouse
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.APP_IMAGE }}:latest
+            ${{ env.APP_IMAGE }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+  clickhouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Export public dashboard data as ClickHouse seed
+        run: node scripts/export-clickhouse-seed.mjs .build/clickhouse-seed
+      - name: Prepare ClickHouse data directory
+        run: |
+          mkdir -p .build/clickhouse-data
+          sudo chown -R 101:101 .build/clickhouse-data
+      - name: Start temporary ClickHouse
+        run: |
+          docker run -d --name uct-clickhouse-builder \
+            --user 101:101 \
+            -v "$PWD/.build/clickhouse-data:/var/lib/clickhouse" \
+            clickhouse/clickhouse-server:24.8
+          for attempt in {1..60}; do
+            if docker exec uct-clickhouse-builder clickhouse-client --query "SELECT 1" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs uct-clickhouse-builder
+          exit 1
+      - name: Create tables and insert embedded data
+        run: |
+          docker exec -i uct-clickhouse-builder clickhouse-client --multiquery < docker/clickhouse-baked/schema.sql
+          docker exec -i uct-clickhouse-builder clickhouse-client --query "INSERT INTO gold.connectivity_points FORMAT JSONEachRow" < .build/clickhouse-seed/connectivity_points.jsonl
+          docker exec -i uct-clickhouse-builder clickhouse-client --query "INSERT INTO gold.internet_appeals FORMAT JSONEachRow" < .build/clickhouse-seed/internet_appeals.jsonl
+          docker exec -i uct-clickhouse-builder clickhouse-client --query "INSERT INTO gold.district_connectivity FORMAT JSONEachRow" < .build/clickhouse-seed/district_connectivity.jsonl
+          test "$(docker exec uct-clickhouse-builder clickhouse-client --query 'SELECT count() FROM gold.connectivity_points')" = "311"
+          test "$(docker exec uct-clickhouse-builder clickhouse-client --query 'SELECT count() FROM gold.internet_appeals')" = "2102"
+          test "$(docker exec uct-clickhouse-builder clickhouse-client --query 'SELECT count() FROM gold.district_connectivity')" = "13"
+      - name: Stop builder and make data available to image build
+        run: |
+          docker stop --time 30 uct-clickhouse-builder
+          sudo chown -R "$(id -u):$(id -g)" .build/clickhouse-data
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build baked ClickHouse image locally
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/clickhouse-baked/Dockerfile
+          load: true
+          tags: ${{ env.CLICKHOUSE_IMAGE }}:verify
+      - name: Verify baked image starts without migrations
+        run: |
+          docker run -d --name uct-clickhouse-verify -p 18123:8123 ${{ env.CLICKHOUSE_IMAGE }}:verify
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:18123/ping >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          test "$(curl -fsS 'http://127.0.0.1:18123/?query=SELECT%20count()%20FROM%20gold.connectivity_points')" = "311"
+          test "$(curl -fsS 'http://127.0.0.1:18123/?query=SELECT%20count()%20FROM%20gold.internet_appeals')" = "2102"
+          test "$(curl -fsS 'http://127.0.0.1:18123/?query=SELECT%20count()%20FROM%20gold.district_connectivity')" = "13"
+      - name: Publish verified ClickHouse image
+        run: |
+          docker tag ${{ env.CLICKHOUSE_IMAGE }}:verify ${{ env.CLICKHOUSE_IMAGE }}:latest
+          docker tag ${{ env.CLICKHOUSE_IMAGE }}:verify ${{ env.CLICKHOUSE_IMAGE }}:sha-${{ github.sha }}
+          docker push ${{ env.CLICKHOUSE_IMAGE }}:latest
+          docker push ${{ env.CLICKHOUSE_IMAGE }}:sha-${{ github.sha }}

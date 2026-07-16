@@ -1,0 +1,12 @@
+apiVersion: v2
+name: sdu-uct-analiz
+description: SDU UCT analytics dashboard with an embedded-data ClickHouse image
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+kubeVersion: ">=1.25.0-0"
+home: https://github.com/kassenkhann-cell/uct_sdu
+sources:
+  - https://github.com/kassenkhann-cell/uct_sdu
+maintainers:
+  - name: SDU UCT

@@ -1,0 +1,26 @@
+{{- if .Values.clickhouse.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sdu-uct-analiz.fullname" . }}-clickhouse
+  labels:
+    {{- include "sdu-uct-analiz.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+  {{- with .Values.clickhouse.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.clickhouse.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.clickhouse.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+    - name: native
+      port: {{ .Values.clickhouse.service.nativePort }}
+      targetPort: native
+      protocol: TCP
+  selector:
+    {{- include "sdu-uct-analiz.clickhouseSelectorLabels" . | nindent 4 }}
+{{- end }}

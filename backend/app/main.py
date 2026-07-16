@@ -74,6 +74,16 @@ def health():
     }
 
 
+@app.get("/ready")
+def ready():
+    if settings.data_mode == "clickhouse":
+        try:
+            get_client().query("SELECT 1")
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="ClickHouse unavailable") from exc
+    return {"status": "ready", "data_mode": settings.data_mode}
+
+
 @app.get("/api/meta")
 def meta():
     return dashboard_payload()["meta"]

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sdu-uct-analiz.fullname" . }}
+  labels:
+    {{- include "sdu-uct-analiz.labels" . | nindent 4 }}
+data:
+  DATA_MODE: "clickhouse"
+  CLICKHOUSE_HOST: {{ include "sdu-uct-analiz.clickhouseHost" . | quote }}
+  CLICKHOUSE_PORT: {{ ternary .Values.clickhouse.service.httpPort .Values.clickhouse.external.port .Values.clickhouse.enabled | quote }}
+  CLICKHOUSE_USER: {{ ternary .Values.clickhouse.auth.username .Values.clickhouse.external.username .Values.clickhouse.enabled | quote }}
+  CLICKHOUSE_SECURE: {{ ternary false .Values.clickhouse.external.secure .Values.clickhouse.enabled | quote }}
+  CLICKHOUSE_VERIFY: {{ ternary false .Values.clickhouse.external.verify .Values.clickhouse.enabled | quote }}
+  CORS_ORIGINS: {{ .Values.corsOrigins | quote }}
+  LLM_BASE_URL: {{ .Values.llm.baseUrl | quote }}
+  LLM_MODEL: {{ .Values.llm.model | quote }}
+  LLM_TIMEOUT_SECONDS: {{ .Values.llm.timeoutSeconds | quote }}
+  PORT: "8000"

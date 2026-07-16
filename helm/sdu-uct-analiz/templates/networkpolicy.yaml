@@ -1,0 +1,23 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sdu-uct-analiz.fullname" . }}
+  labels:
+    {{- include "sdu-uct-analiz.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/name: {{ include "sdu-uct-analiz.name" . }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "sdu-uct-analiz.appSelectorLabels" . | nindent 14 }}
+        {{- with .Values.networkPolicy.ingressNamespaceSelector }}
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+{{- end }}
